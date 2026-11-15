@@ -303,7 +303,18 @@ the existing guarded foreground/HID path.
 
 For a token/index action, revalidate the retained element's ancestry against
 the requested top-level AX window. A cached element under the right cache key
-is not sufficient after a lifecycle or Space transition.
+is not sufficient after a lifecycle or Space transition. A native `AXSheet` is
+not a top-level window boundary: follow its actual `AXParent` chain to the first
+`AXWindow`, including when `AXWindow` points to the sheet itself. Stop at that
+first window, an application boundary, an unreadable parent or the 40-node
+bound; never search past a different top-level window for a matching ID.
+
+`platform-macos/src/ax/ancestry.rs` owns this traversal and its portable fixture
+regression. The fixture preserves the captured native Chrome tree's indices
+0 (host window 4916), 60 (sheet under 0), and 65 (Cancel under 60). Optional sheet
+CG mappings and `AXWindow` attributes are explicit test variants, not captured
+facts. The native adapter owns and releases retained AX references; fixture tests
+do not establish native dispatch, stale-token handling or installed-driver parity.
 
 Safe commit behavior is explicit:
 

@@ -7,17 +7,24 @@ pub(crate) trait AncestryReader {
     fn window_id(&self, element: &Self::Element) -> Option<u32>;
 }
 
-pub(crate) fn element_window_id<R: AncestryReader>(reader: &R, element: &R::Element) -> Option<u32> {
+pub(crate) fn element_window_id<R: AncestryReader>(
+    reader: &R,
+    element: &R::Element,
+) -> Option<u32> {
     if let Some(window) = reader.window(element) {
-        if let Some(id) = reader.window_id(&window) {
+        if let Some(id) = ascend_to_window(reader, &window) {
             return Some(id);
         }
     }
+    ascend_to_window(reader, element)
+}
+
+fn ascend_to_window<R: AncestryReader>(reader: &R, element: &R::Element) -> Option<u32> {
     let mut parent = None;
     for _ in 0..40 {
         let current = parent.as_ref().unwrap_or(element);
         match reader.role(current).as_deref() {
-            Some("AXWindow") | Some("AXSheet") => return reader.window_id(current),
+            Some("AXWindow") => return reader.window_id(current),
             Some("AXApplication") | None => return None,
             _ => {}
         }
@@ -47,9 +54,24 @@ mod tests {
         fn captured() -> Self {
             Self {
                 nodes: vec![
-                    Node { index: 0, parent_index: None, role: "AXWindow", window_id: Some(4916) },
-                    Node { index: 60, parent_index: Some(0), role: "AXSheet", window_id: None },
-                    Node { index: 65, parent_index: Some(60), role: "AXButton", window_id: None },
+                    Node {
+                        index: 0,
+                        parent_index: None,
+                        role: "AXWindow",
+                        window_id: Some(4916),
+                    },
+                    Node {
+                        index: 60,
+                        parent_index: Some(0),
+                        role: "AXSheet",
+                        window_id: None,
+                    },
+                    Node {
+                        index: 65,
+                        parent_index: Some(60),
+                        role: "AXButton",
+                        window_id: None,
+                    },
                 ],
                 window_attribute: None,
             }
@@ -59,15 +81,26 @@ mod tests {
     impl AncestryReader for NativeSheetFixture {
         type Element = u32;
 
-        fn window(&self, _: &u32) -> Option<u32> { self.window_attribute }
+        fn window(&self, _: &u32) -> Option<u32> {
+            self.window_attribute
+        }
         fn parent(&self, index: &u32) -> Option<u32> {
-            self.nodes.iter().find(|node| node.index == *index)?.parent_index
+            self.nodes
+                .iter()
+                .find(|node| node.index == *index)?
+                .parent_index
         }
         fn role(&self, index: &u32) -> Option<String> {
-            self.nodes.iter().find(|node| node.index == *index).map(|node| node.role.to_string())
+            self.nodes
+                .iter()
+                .find(|node| node.index == *index)
+                .map(|node| node.role.to_string())
         }
         fn window_id(&self, index: &u32) -> Option<u32> {
-            self.nodes.iter().find(|node| node.index == *index)?.window_id
+            self.nodes
+                .iter()
+                .find(|node| node.index == *index)?
+                .window_id
         }
     }
 
