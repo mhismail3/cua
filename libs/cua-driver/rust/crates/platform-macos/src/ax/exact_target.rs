@@ -18,55 +18,45 @@ use super::bindings::{
 };
 use crate::windows::{all_windows, resolve_window_owner, WindowOwner};
 
-/// Bounded `AXParent` ascent used when an element does not expose `AXWindow`.
-const MAX_ANCESTRY_DEPTH: usize = 40;
+struct NativeElement {
+    raw: AXUIElementRef,
+    retained: bool,
+}
 
-/// Resolve the CGWindowID of the top-level AX window that owns `element`.
-///
-/// Prefers the element's `AXWindow` attribute and falls back to a bounded
-/// `AXParent` walk. `None` means ancestry could not be proven — callers must
-/// treat that as "not the requested window", never as a wildcard.
-///
-/// # Safety
-///
-/// `element` must be a valid `AXUIElementRef` for the duration of the call.
+impl Drop for NativeElement {
+    fn drop(&mut self) {
+        if self.retained {
+            unsafe { CFRelease(self.raw as CFTypeRef) };
+        }
+    }
+}
+
+struct NativeAncestry;
+
+impl super::ancestry::AncestryReader for NativeAncestry {
+    type Element = NativeElement;
+
+    fn window(&self, element: &NativeElement) -> Option<NativeElement> {
+        unsafe { copy_element_attr(element.raw, "AXWindow") }
+            .map(|raw| NativeElement { raw, retained: true })
+    }
+
+    fn parent(&self, element: &NativeElement) -> Option<NativeElement> {
+        unsafe { copy_element_attr(element.raw, "AXParent") }
+            .map(|raw| NativeElement { raw, retained: true })
+    }
+
+    fn role(&self, element: &NativeElement) -> Option<String> {
+        unsafe { copy_string_attr(element.raw, "AXRole") }
+    }
+
+    fn window_id(&self, element: &NativeElement) -> Option<u32> {
+        unsafe { ax_get_window_id(element.raw) }
+    }
+}
+
 pub unsafe fn element_window_id(element: AXUIElementRef) -> Option<u32> {
-    if let Some(window) = copy_element_attr(element, "AXWindow") {
-        let window_id = ax_get_window_id(window);
-        CFRelease(window as CFTypeRef);
-        if window_id.is_some() {
-            return window_id;
-        }
-    }
-    // Fallback: ascend AXParent until a window role, then map it.
-    let mut current: AXUIElementRef = element;
-    let mut owned = false;
-    let mut resolved = None;
-    for _ in 0..MAX_ANCESTRY_DEPTH {
-        match copy_string_attr(current, "AXRole").as_deref() {
-            Some("AXWindow") | Some("AXSheet") => {
-                resolved = ax_get_window_id(current);
-                break;
-            }
-            Some("AXApplication") | None => break,
-            _ => {}
-        }
-        let parent = copy_element_attr(current, "AXParent");
-        if owned {
-            CFRelease(current as CFTypeRef);
-        }
-        match parent {
-            Some(parent) => {
-                current = parent;
-                owned = true;
-            }
-            None => return None,
-        }
-    }
-    if owned {
-        CFRelease(current as CFTypeRef);
-    }
-    resolved
+    super::ancestry::element_window_id(&NativeAncestry, &NativeElement { raw: element, retained: false })
 }
 
 /// The process's focused AX element, but only when it provably belongs to the
