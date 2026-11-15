@@ -37,13 +37,17 @@ impl super::ancestry::AncestryReader for NativeAncestry {
     type Element = NativeElement;
 
     fn window(&self, element: &NativeElement) -> Option<NativeElement> {
-        unsafe { copy_element_attr(element.raw, "AXWindow") }
-            .map(|raw| NativeElement { raw, retained: true })
+        unsafe { copy_element_attr(element.raw, "AXWindow") }.map(|raw| NativeElement {
+            raw,
+            retained: true,
+        })
     }
 
     fn parent(&self, element: &NativeElement) -> Option<NativeElement> {
-        unsafe { copy_element_attr(element.raw, "AXParent") }
-            .map(|raw| NativeElement { raw, retained: true })
+        unsafe { copy_element_attr(element.raw, "AXParent") }.map(|raw| NativeElement {
+            raw,
+            retained: true,
+        })
     }
 
     fn role(&self, element: &NativeElement) -> Option<String> {
@@ -56,7 +60,13 @@ impl super::ancestry::AncestryReader for NativeAncestry {
 }
 
 pub unsafe fn element_window_id(element: AXUIElementRef) -> Option<u32> {
-    super::ancestry::element_window_id(&NativeAncestry, &NativeElement { raw: element, retained: false })
+    super::ancestry::element_window_id(
+        &NativeAncestry,
+        &NativeElement {
+            raw: element,
+            retained: false,
+        },
+    )
 }
 
 /// The process's focused AX element, but only when it provably belongs to the
